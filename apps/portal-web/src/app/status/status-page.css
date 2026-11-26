@@ -1,0 +1,222 @@
+/* Tokens e medidas provisórios do UX-0001 v1.1 §8 (P-UX-03). */
+:host {
+  --cor-texto-suave: #4b5563;
+  --cor-borda: #6b7280;
+  --cor-acao: #1f4e8c;
+  --cor-foco: #0b3d91;
+  --ok-fg: #0f5b2a;
+  --ok-bg: #e8f5ec;
+  --ok-borda: #1e7b3f;
+  --erro-fg: #8f1d1d;
+  --erro-bg: #fdecec;
+  --erro-borda: #b42318;
+  --carga-fg: #1f2937;
+  --carga-bg: #eef1f5;
+  --carga-borda: #5b6575;
+  --esp-1: 4px;
+  --esp-2: 8px;
+  --esp-3: 16px;
+  --esp-4: 24px;
+  --esp-5: 32px;
+  --raio: 8px;
+  --fonte-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace;
+  display: block;
+}
+.conteudo {
+  padding: var(--esp-5) var(--esp-4);
+  max-width: 720px;
+  margin: 0 auto;
+}
+h1 {
+  font-size: 1.75rem;
+  line-height: 2.25rem;
+  margin: 0 0 var(--esp-2);
+}
+.intro {
+  margin: 0 0 var(--esp-4);
+  color: var(--cor-texto-suave);
+}
+.cartao {
+  background: #fff;
+  border: 1px solid var(--cor-borda);
+  border-radius: var(--raio);
+  padding: var(--esp-4);
+}
+.estado {
+  border: 2px solid;
+  border-radius: var(--raio);
+  padding: var(--esp-3) var(--esp-4);
+}
+.estado h2 {
+  margin: 0;
+  font-size: 1.5rem;
+  line-height: 2rem;
+  display: flex;
+  align-items: center;
+  gap: var(--esp-3);
+}
+.estado h2 svg {
+  flex: none;
+  width: 32px;
+  height: 32px;
+}
+.estado p {
+  margin: var(--esp-2) 0 0;
+}
+.est-ok {
+  background: var(--ok-bg);
+  color: var(--ok-fg);
+  border-color: var(--ok-borda);
+  border-style: solid;
+}
+.est-erro {
+  background: var(--erro-bg);
+  color: var(--erro-fg);
+  border-color: var(--erro-borda);
+  border-style: solid;
+  border-left-width: 8px;
+}
+.est-carga {
+  background: var(--carga-bg);
+  color: var(--carga-fg);
+  border-color: var(--carga-borda);
+  border-style: dashed;
+}
+.selo {
+  display: inline-block;
+  font-size: 0.875rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  padding: 0 var(--esp-2);
+  margin-left: auto;
+}
+dl.dados {
+  margin: var(--esp-4) 0 0;
+  display: grid;
+  grid-template-columns: minmax(10rem, 14rem) 1fr;
+  gap: var(--esp-3) var(--esp-4);
+}
+dl.dados dt {
+  color: var(--cor-texto-suave);
+  font-weight: 600;
+}
+dl.dados dd {
+  margin: 0;
+  font-family: var(--fonte-mono);
+  font-size: 1.125rem;
+  overflow-wrap: anywhere;
+}
+dl.dados dd small {
+  display: block;
+  font-size: 0.875rem;
+  color: var(--cor-texto-suave);
+  font-family:
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    Roboto,
+    'Helvetica Neue',
+    Arial,
+    sans-serif;
+}
+.esqueleto {
+  height: 1.5rem;
+  border-radius: 4px;
+  background: #c9cfd8;
+  max-width: 16rem;
+}
+.esqueleto.curto {
+  max-width: 8rem;
+}
+.acoes {
+  margin-top: var(--esp-4);
+}
+.btn {
+  font: inherit;
+  font-weight: 600;
+  min-height: 44px;
+  min-width: 10rem;
+  padding: var(--esp-2) var(--esp-4);
+  border-radius: 6px;
+  border: 2px solid var(--cor-acao);
+  background: var(--cor-acao);
+  color: #fff;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--esp-2);
+}
+.btn[aria-disabled='true'] {
+  background: #fff;
+  color: var(--cor-texto-suave);
+  border-color: var(--cor-borda);
+  cursor: not-allowed;
+}
+.btn:focus-visible {
+  outline: 3px solid var(--cor-foco);
+  outline-offset: 3px;
+}
+.btn svg {
+  width: 20px;
+  height: 20px;
+}
+.giro {
+  animation: giro 1s linear infinite;
+  transform-origin: 50% 50%;
+}
+@keyframes giro {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .giro {
+    animation: none;
+  }
+}
+@media (forced-colors: active) {
+  .estado {
+    border-width: 2px;
+  }
+  .est-erro {
+    border-left-width: 8px;
+  }
+  .btn {
+    border: 2px solid ButtonText;
+  }
+}
+@media (max-width: 599px) {
+  .conteudo {
+    padding: var(--esp-4) var(--esp-3);
+  }
+  h1 {
+    font-size: 1.5rem;
+    line-height: 2rem;
+  }
+  .cartao,
+  .estado {
+    padding: var(--esp-3);
+  }
+  .estado h2 {
+    font-size: 1.25rem;
+    line-height: 1.75rem;
+    flex-wrap: wrap;
+  }
+  .selo {
+    margin-left: 0;
+  }
+  dl.dados {
+    grid-template-columns: 1fr;
+    gap: var(--esp-1) 0;
+  }
+  dl.dados dd {
+    margin-bottom: var(--esp-3);
+  }
+  .btn {
+    width: 100%;
+  }
+}

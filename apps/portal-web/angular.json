@@ -78,6 +78,9 @@
               "text",
               "text-summary",
               "cobertura"
+            ],
+            "coverageExclude": [
+              "src/**/testing.ts"
             ]
           }
         },

@@ -1,1 +1,5 @@
-/* You can add global styles to this file, and also import other style files */
+/* Estilos globais do Portal Web (tokens provisórios do UX-0001 v1.1 §8). */
+* { box-sizing: border-box; }
+html { font-size: 100%; }
+body { margin: 0; background: #f5f6f8; color: #1b1f24; font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.5; }
+.sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }

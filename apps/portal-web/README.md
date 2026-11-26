@@ -13,4 +13,19 @@ npx ng test --no-watch --coverage   # testes unitários e cobertura
 npx ng build                        # build de produção em dist/
 ```
 
-A tela de status (US-0002) e a injeção de `PORTAL_API_BASE_URL` entram na implementação da TASK-0008.
+## Tela de status (US-0002)
+
+Rota `/status` (a raiz redireciona para ela). Estados Carregando, Saudável e Erro conforme o UX-0001 v1.1:
+consulta única a `GET <PORTAL_API_BASE_URL>/health` com tempo limite de 5 s, sem nova tentativa automática e sem cache.
+
+### `PORTAL_API_BASE_URL`
+
+O endereço da API entra no build/serve por `--define` e é lido uma única vez pelo token `API_BASE_URL` (`src/app/config/api-base-url.ts`):
+
+```bash
+npx ng serve --define "PORTAL_API_BASE_URL=\"$PORTAL_API_BASE_URL\""
+npx ng build --define "PORTAL_API_BASE_URL=\"$PORTAL_API_BASE_URL\""
+```
+
+Só é aceita URL absoluta `http`/`https`, sem credenciais, query ou fragmento. Ausente ou inválida ⇒ a tela fica em Erro (nunca "Saudável").
+O valor real fica só no `.env` local (fora do git); os testes substituem o token.
