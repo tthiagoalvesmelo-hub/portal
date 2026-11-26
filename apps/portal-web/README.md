@@ -1,59 +1,16 @@
-# PortalWeb
+# portal-web
 
-This project was generated using [Angular CLI](https://github.com/angular/angular-cli) version 22.3.0.
+Workspace Angular 22.3 do Portal Web (ADR-0001 v2.0 D3/D6), gerado pelo Angular CLI 22.3.0 (`ng new`) com os padrões do CLI.
+Testes com Vitest + jsdom (`ng test`), lint com angular-eslint (`ng lint`) e cobertura com `@vitest/coverage-v8` (limiar de 80% de linhas no `angular.json`, DEC-ARQ-0007 W3).
 
-## Development server
-
-To start a local development server, run:
-
-```bash
-ng serve
-```
-
-Once the server is running, open your browser and navigate to `http://localhost:4200/`. The application will automatically reload whenever you modify any of the source files.
-
-## Code scaffolding
-
-Angular CLI includes powerful code scaffolding tools. To generate a new component, run:
+## Comandos
 
 ```bash
-ng generate component component-name
+npm ci                              # instala exatamente o package-lock.json
+npx ng serve                        # servidor de desenvolvimento (a subida oficial é do OPS: scripts/start-local.sh)
+npx ng lint                         # lint, zero avisos (DEC-ARQ-0008)
+npx ng test --no-watch --coverage   # testes unitários e cobertura
+npx ng build                        # build de produção em dist/
 ```
 
-For a complete list of available schematics (such as `components`, `directives`, or `pipes`), run:
-
-```bash
-ng generate --help
-```
-
-## Building
-
-To build the project run:
-
-```bash
-ng build
-```
-
-This will compile your project and store the build artifacts in the `dist/` directory. By default, the production build optimizes your application for performance and speed.
-
-## Running unit tests
-
-To execute unit tests with the [Vitest](https://vitest.dev/) test runner, use the following command:
-
-```bash
-ng test
-```
-
-## Running end-to-end tests
-
-For end-to-end (e2e) testing, run:
-
-```bash
-ng e2e
-```
-
-Angular CLI does not come with an end-to-end testing framework by default. You can choose one that suits your needs.
-
-## Additional Resources
-
-For more information on using the Angular CLI, including detailed command references, visit the [Angular CLI Overview and Command Reference](https://angular.dev/tools/cli) page.
+A tela de status (US-0002) e a injeção de `PORTAL_API_BASE_URL` entram na implementação da TASK-0008.
