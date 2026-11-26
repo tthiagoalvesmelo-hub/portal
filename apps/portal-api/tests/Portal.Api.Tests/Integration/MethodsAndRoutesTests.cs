@@ -152,7 +152,7 @@ public sealed class MethodsAndRoutesTests
     private static async Task AssertMethodNotAllowedAsync(HttpResponseMessage response)
     {
         Assert.Equal(405, (int)response.StatusCode);
-        Assert.Equal(Oracles.AllowedMethodsSet, Oracles.MethodSet(Oracles.Header(response, "Allow")));
+        Assert.Equal(Oracles.AllowHeader, Oracles.RawContentHeader(response, "Allow"));
         Assert.Equal(Oracles.ProblemContentType, Oracles.ContentType(response));
         var text = await response.Content.ReadAsStringAsync();
         using var body = JsonDocument.Parse(text);

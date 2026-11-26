@@ -38,9 +38,12 @@ public static class ContractValidator
         && Regex.IsMatch(value, TimestampPattern, RegexOptions.CultureInvariant)
         && IsValidDateTimeFormat(value);
 
-    /// <summary>format: date-time (RFC 3339) restrito ao formato do contrato; valida calendário real.</summary>
+    /// <summary>
+    /// format: date-time (RFC 3339) restrito ao formato do contrato, com DateTimeOffset: valida calendário real,
+    /// exige o designador Z (offset zero) e exatamente 3 casas; não aceita espaço nem \n.
+    /// </summary>
     public static bool IsValidDateTimeFormat(string value) =>
-        DateTime.TryParseExact(
+        DateTimeOffset.TryParseExact(
             value,
             "yyyy-MM-dd'T'HH:mm:ss.fff'Z'",
             CultureInfo.InvariantCulture,

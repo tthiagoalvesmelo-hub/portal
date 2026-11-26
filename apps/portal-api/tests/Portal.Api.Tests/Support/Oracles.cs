@@ -18,6 +18,10 @@ public static class Oracles
     public static readonly DateTimeOffset FixedInstant = new DateTimeOffset(2026, 11, 26, 15, 34, 56, TimeSpan.Zero).AddTicks(7891234);
     public const string FixedInstantFormatted = "2026-11-26T15:34:56.789Z";
 
+    /// <summary>Allow: const 'GET, HEAD' do contrato (openapi 1.0.0 components.headers.Allow), comparado exatamente.</summary>
+    public const string AllowHeader = "GET, HEAD";
+
+    /// <summary>Access-Control-Allow-Methods: comparado como conjunto {GET, HEAD} (DEC-ARQ-0012 §1).</summary>
     public static readonly string[] AllowedMethodsSet = ["GET", "HEAD"];
 
     /// <summary>Lê um cabeçalho de resposta ou de conteúdo; null se ausente.</summary>
@@ -32,7 +36,23 @@ public static class Oracles
         return response.Content.Headers.TryGetValues(name, out var contentValues) ? string.Join(", ", contentValues) : null;
     }
 
-    /// <summary>Compara listas de métodos como conjunto (DEC-ARQ-0012: ordem e espaços não importam).</summary>
+    /// <summary>
+    /// Valor bruto de um cabeçalho de conteúdo como recebido (sem o parse do HttpClient): exige uma única linha.
+    /// Usado no Allow para que "GET,HEAD" ou duas linhas separadas não passem como "GET, HEAD".
+    /// </summary>
+    public static string? RawContentHeader(HttpResponseMessage response, string name)
+    {
+        ArgumentNullException.ThrowIfNull(response);
+        if (!response.Content.Headers.NonValidated.TryGetValues(name, out var values))
+        {
+            return null;
+        }
+
+        Assert.Single(values);
+        return values.ToString();
+    }
+
+    /// <summary>Compara listas de métodos como conjunto (só para Access-Control-Allow-Methods, DEC-ARQ-0012 §1).</summary>
     public static string[] MethodSet(string? headerValue) =>
         (headerValue ?? string.Empty)
             .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)

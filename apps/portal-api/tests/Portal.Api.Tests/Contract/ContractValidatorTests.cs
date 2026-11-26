@@ -36,6 +36,25 @@ public sealed class ContractValidatorTests
         Assert.True(ContractValidator.IsValidTimestamp("2026-11-26T15:34:56.789Z"));
     }
 
+    [Theory]
+    [InlineData("2026-02-31T10:00:00.000Z")]
+    [InlineData("2026-11-26T15:34:56Z")]
+    [InlineData("2026-11-26T15:34:56.7891234Z")]
+    [InlineData("2026-11-26T15:34:56.789Z\n")]
+    [InlineData("2026-11-26T15:34:56.789+00:00")]
+    [InlineData("2026-11-26T12:34:56.789-03:00")]
+    [Trait("CT", "CT-0004")]
+    public void NegativosDeTimestampSaoReprovadosPeloValidadorEPeloFormat(string value)
+    {
+        Assert.False(ContractValidator.IsValidTimestamp(value));
+        Assert.False(ContractValidator.IsValidDateTimeFormat(value));
+    }
+
+    [Fact]
+    [Trait("CT", "CT-0004")]
+    public void FormatAceitaOValorPositivoDoContrato() =>
+        Assert.True(ContractValidator.IsValidDateTimeFormat("2026-11-26T15:30:00.123Z"));
+
     [Fact]
     [Trait("CT", "CT-0004")]
     public void CorpoComDataInexistenteEhReprovadoPeloEsquema()
@@ -110,6 +129,21 @@ public sealed class ContractValidatorTests
         Assert.NotEmpty(ContractValidator.ValidateProblem(notObject.RootElement, "Not Found", 404));
     }
 
+    /// <summary>Sensibilidade do oráculo exato do Allow (S3 do CR): variações que um conjunto aceitaria são reprovadas.</summary>
+    [Theory]
+    [InlineData("GET, HEAD", true)]
+    [InlineData("GET,HEAD", false)]
+    [InlineData("HEAD, GET", false)]
+    [InlineData("get, head", false)]
+    [Trait("CT", "CT-0008")]
+    public void OraculoDoAllowComparaOValorBrutoExato(string sent, bool expected)
+    {
+        using var response = new HttpResponseMessage { Content = new ByteArrayContent([]) };
+        Assert.True(response.Content.Headers.TryAddWithoutValidation("Allow", sent));
+
+        Assert.Equal(expected, Oracles.AllowHeader == Oracles.RawContentHeader(response, "Allow"));
+    }
+
     [Fact]
     public void ReferenciaAoContratoApontaParaASHAAprovada()
     {
@@ -117,5 +151,8 @@ public sealed class ContractValidatorTests
         Assert.Equal("02-tecnica/contratos-api/portal-api/openapi.yaml", ContractReference.Path);
         Assert.Equal("1.0.0", ContractReference.InfoVersion);
         Assert.Equal("e34e6b9", ContractReference.Sha);
+        Assert.StartsWith("https://", ContractReference.Url, StringComparison.Ordinal);
+        Assert.Contains(ContractReference.Sha, ContractReference.Url, StringComparison.Ordinal);
+        Assert.EndsWith(ContractReference.Path, ContractReference.Url, StringComparison.Ordinal);
     }
 }
