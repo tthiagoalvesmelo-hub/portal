@@ -1,0 +1,36 @@
+# portal — .gitignore da raiz (esqueleto D6, ADR-0001 v2.0; trecho proposto pelo OPS, TASK-0012)
+# DEM-2026-001 / TASK-0008
+
+# Segredos e valores locais — NUNCA versionar (repositório PÚBLICO)
+.env
+.env.*
+!.env.example
+
+# Estado de execução local (PIDs, logs de processo)
+run/
+
+# Evidências de verify, smoke, rollback, p95 e observação (DEC-ARQ-0007/0010; fora do git)
+evidencias/
+
+# API (.NET): build, resultados de teste e cobertura
+**/bin/
+**/obj/
+**/TestResults/
+coverage.cobertura.xml
+*.trx
+
+# Portal (Angular): dependências, cache, build e cobertura
+node_modules/
+.angular/
+dist/
+coverage/
+
+# IDE/SO
+.vs/
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.user
+.DS_Store
+
+# Lockfiles (packages.lock.json, package-lock.json) DEVEM ser versionados — não ignorar.
