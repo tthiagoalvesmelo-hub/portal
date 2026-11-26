@@ -1,0 +1,36 @@
+# CODEOWNERS — portal
+# Vigência: AH-0004 (26/11/2026). Papéis derivados da matriz de leitura/escrita
+# (00-memoria/protocolo-memoria.md) e do ADR-0001 (D6: estrutura do monorepo).
+# Nada além disso foi inventado.
+#
+# Lacuna: só existe a conta GitHub @tthiagoalvesmelo-hub. Os papéis da stack
+# (FS, ARQ, OPS, CR, QA, UX, DOC e demais) não têm contas próprias. Todas as
+# áreas apontam para essa conta. Com uma conta só, o GitHub não impede o autor
+# de aprovar o próprio PR. A regra "quem produz não aprova" é garantida pelo
+# protocolo (revisão do CR quando aplicável + merge pelo dono da área), não
+# pela ferramenta.
+#
+# Estrutura prevista no ADR-0001 D6 (ainda não criada neste commit inicial):
+#   apps/portal-api/  apps/portal-web/  scripts/  docs/
+
+# Padrão do monorepo. Arquitetura e padrões do Portal: A = ARQ
+# (matriz: 01-institucional / arquitetura, padrões, tecnologias; 02-tecnica / ADR).
+# Código: revisão do CR no G4; 2ª aprovação do ARQ se a mudança for crítica
+# (matriz de aprovações, ponto 6). Implementação: FS (ADR-0001 D6).
+* @tthiagoalvesmelo-hub
+
+# apps/portal-api — API backend (C#/.NET, ADR-0001 D2/D6)
+# papel dono de arquitetura: ARQ; implementação: FS; revisão: CR (G4)
+/apps/portal-api/ @tthiagoalvesmelo-hub
+
+# apps/portal-web — front-end Angular (ADR-0001 D6)
+# papel dono de arquitetura: ARQ; implementação: FS; revisão: CR (G4)
+/apps/portal-web/ @tthiagoalvesmelo-hub
+
+# scripts/ — configurações e implantação (matriz: 02-tecnica / configurações e implantação, A = OPS)
+# ADR-0001 D6: scripts de verify-local, check-version, measure-p95 (DEC-ARQ-0007/0010)
+/scripts/ @tthiagoalvesmelo-hub
+
+# docs/ — somente ponteiros para o stack-conhecimento (ADR-0001 D6)
+# curadoria: DOC (sem alterar conteúdo de outros donos)
+/docs/ @tthiagoalvesmelo-hub
