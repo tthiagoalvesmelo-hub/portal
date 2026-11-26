@@ -9,6 +9,12 @@
 #   O ensaio N1 oficial (host, porta e CORS combinados) só vale depois da implementação do D7 pelo FS.
 set -euo pipefail
 
+# Carrega o toolchain local da box, se existir (DOTNET_ROOT, PATH, telemetria).
+if [ -f "${HOME}/.config/ops-toolchain.sh" ]; then
+  # shellcheck disable=SC1091
+  . "${HOME}/.config/ops-toolchain.sh"
+fi
+
 die() { echo "[start-local] ERRO: $*" >&2; exit 1; }
 ts() { TZ=America/Sao_Paulo date '+%Y-%m-%d %H:%M:%S %Z'; }
 
