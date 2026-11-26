@@ -26,7 +26,8 @@ public sealed class MethodsAndRoutesTests
     }
 
     /// <summary>
-    /// OPTIONS sem preflight ⇒ 405 (DEC-ARQ-0012 §1.3). CT novo a ser criado pela QA após o merge do PR #4;
+    /// OPTIONS sem preflight ⇒ 405 (DEC-ARQ-0012 §1.3). CT-0050, ID definido pela QA (reserva no registro pendente,
+    /// no PR de ajuste dos CT após o merge dos PRs #4 e #7);
     /// variantes parametrizadas: sem Origin e sem Access-Control-Request-Method, só Origin permitida, só ACRM.
     /// Com só Origin, o ACAO pode existir e não é verificado (§1.3).
     /// </summary>
@@ -34,7 +35,7 @@ public sealed class MethodsAndRoutesTests
     [InlineData(null, null)]
     [InlineData(Oracles.AllowedOrigin, null)]
     [InlineData(null, "GET")]
-    [Trait("CT", "CT-OPTIONS-SEM-PREFLIGHT")]
+    [Trait("CT", "CT-0050")]
     public async Task OptionsSemPreflightResponde405(string? origin, string? requestMethod)
     {
         await using var factory = PortalApiFactory.Create();
