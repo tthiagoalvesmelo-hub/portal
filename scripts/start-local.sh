@@ -7,6 +7,7 @@
 # Build: caminho posicional (no SDK 10.0.404, "dotnet build --project" falha com MSB1001).
 # --somente-mecanica: ensaios de PID antes do D7 (a API ainda pode escutar no padrão do Kestrel).
 #   O ensaio N1 oficial (host, porta e CORS combinados) só vale depois da implementação do D7 pelo FS.
+# PIDs: grava a folha que escuta (Portal.Api, ng serve), não o wrapper (dotnet run, npm/npx).
 set -euo pipefail
 
 # Carrega o toolchain local da box, se existir (DOTNET_ROOT, PATH, telemetria).
@@ -62,6 +63,66 @@ if [ -f "$RUN_DIR/api.pid" ] || [ -f "$RUN_DIR/web.pid" ]; then
   die "run/*.pid já existe: rode scripts/stop-local.sh antes."
 fi
 
+pid_vivo() { [ -n "${1:-}" ] && kill -0 "$1" 2>/dev/null; }
+
+# PID que escuta na porta (ss -p). Não usa pkill.
+listener_pid() {
+  local port="$1"
+  ss -ltnp 2>/dev/null | python3 -c '
+import re, sys
+port = sys.argv[1]
+pid_re = re.compile(r"pid=(\d+)")
+for line in sys.stdin:
+    parts = line.split()
+    local = parts[3] if len(parts) >= 4 else ""
+    if not local.endswith(":" + port):
+        continue
+    m = pid_re.search(line)
+    if m:
+        print(m.group(1))
+        break
+' "$port"
+}
+
+descendant_with_token() {
+  local parent="$1" token="$2" pid ppid cmd found
+  for pid_dir in /proc/[0-9]*; do
+    pid="${pid_dir#/proc/}"
+    ppid="$(awk "/^PPid:/ {print \$2}" "$pid_dir/status" 2>/dev/null || true)"
+    [ "$ppid" = "$parent" ] || continue
+    cmd="$(tr "\0" " " < "$pid_dir/cmdline" 2>/dev/null || true)"
+    case "$cmd" in
+      *"$token"*) echo "$pid"; return 0;;
+    esac
+    if found="$(descendant_with_token "$pid" "$token")"; then
+      echo "$found"
+      return 0
+    fi
+  done
+  return 1
+}
+
+# Substitui o pidfile do wrapper pelo da folha e guarda o lançador, se for outro processo.
+record_leaf_pid() {
+  local name="$1" leaf_file="$2" token="$3" port="${4:-}"
+  local launcher leaf
+  launcher="$(cat "$leaf_file")"
+  leaf=""
+  if [ -n "$port" ]; then
+    leaf="$(listener_pid "$port" || true)"
+  fi
+  if [ -z "$leaf" ] || ! pid_vivo "$leaf"; then
+    leaf="$(descendant_with_token "$launcher" "$token" || true)"
+  fi
+  if [ -n "$leaf" ] && pid_vivo "$leaf" && [ "$leaf" != "$launcher" ]; then
+    echo "$launcher" > "${leaf_file%.pid}.launcher.pid"
+    echo "$leaf" > "$leaf_file"
+    echo "[start-local] $name: lançador pid=$launcher; folha pid=$leaf gravado para o stop"
+  else
+    echo "[start-local] $name: usando o pid do lançador ($launcher)"
+  fi
+}
+
 echo "[start-local] $(ts) compilando portal-api em Release (caminho posicional)"
 dotnet build "$API_CSPROJ" -c Release -warnaserror
 
@@ -101,35 +162,35 @@ wait_http() {
   done
   return 1
 }
-pid_vivo() { [ -n "${1:-}" ] && kill -0 "$1" 2>/dev/null; }
 
-API_PID="$(cat "$RUN_DIR/api.pid")"
-WEB_PID="$(cat "$RUN_DIR/web.pid")"
+API_LAUNCHER="$(cat "$RUN_DIR/api.pid")"
+WEB_LAUNCHER="$(cat "$RUN_DIR/web.pid")"
 
 if [ "$SOMENTE_MECANICA" -eq 1 ]; then
   echo "[start-local] modo --somente-mecanica: ensaio de PID (N1 oficial só depois do D7 no código)."
-  # Espera curta só para os processos permanecerem vivos; não exige GET /health na porta oficial.
   ok=1
   i=0
   while [ "$i" -lt 20 ]; do
-    if pid_vivo "$API_PID" && pid_vivo "$WEB_PID"; then ok=0; break; fi
+    if pid_vivo "$API_LAUNCHER" && pid_vivo "$WEB_LAUNCHER"; then ok=0; break; fi
     sleep 0.25
     i=$((i + 1))
   done
-  if [ "$ok" -ne 0 ] || ! pid_vivo "$API_PID" || ! pid_vivo "$WEB_PID"; then
+  if [ "$ok" -ne 0 ] || ! pid_vivo "$API_LAUNCHER" || ! pid_vivo "$WEB_LAUNCHER"; then
     echo "[start-local] um dos processos morreu na subida; últimas linhas dos logs:" >&2
     tail -n 20 "$RUN_DIR/logs/api.log" >&2 || true
     tail -n 20 "$RUN_DIR/logs/web.log" >&2 || true
     "$ROOT/scripts/stop-local.sh" || true
     die "falha na mecânica de subida (PID)."
   fi
-  # O Portal já deve escutar na porta oficial; a API, até o D7, pode ainda estar no padrão do Kestrel.
   if ! wait_http "http://127.0.0.1:${PORTAL_WEB_PORT}/" 80; then
     tail -n 20 "$RUN_DIR/logs/web.log" >&2 || true
     "$ROOT/scripts/stop-local.sh" || true
     die "falha na subida do Portal (ng serve)."
   fi
   echo "[start-local] AVISO: ensaio de mecânica apenas. GET /health em http://${PORTAL_API_HOST}:${PORTAL_API_PORT}/health ainda não é o critério oficial (D7 pendente)."
+  # Web: PID que escuta 4200. API: folha Portal.Api (ainda pode escutar no padrão do Kestrel, não na porta oficial).
+  record_leaf_pid web "$RUN_DIR/web.pid" "ng serve" "$PORTAL_WEB_PORT"
+  record_leaf_pid api "$RUN_DIR/api.pid" "Portal.Api" ""
 else
   if ! wait_http "http://${PORTAL_API_HOST}:${PORTAL_API_PORT}/health" 60; then
     echo "[start-local] portal-api NÃO respondeu em ~30 s em http://${PORTAL_API_HOST}:${PORTAL_API_PORT}/health; últimas linhas do log (sem valores de ambiente):" >&2
@@ -142,6 +203,8 @@ else
     "$ROOT/scripts/stop-local.sh" || true
     die "falha na subida do Portal."
   fi
+  record_leaf_pid api "$RUN_DIR/api.pid" "Portal.Api" "$PORTAL_API_PORT"
+  record_leaf_pid web "$RUN_DIR/web.pid" "ng serve" "$PORTAL_WEB_PORT"
 fi
 
 PORTAL_URL="http://127.0.0.1:${PORTAL_WEB_PORT}"

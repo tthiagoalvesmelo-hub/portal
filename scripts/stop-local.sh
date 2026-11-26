@@ -76,8 +76,16 @@ stop_one() { # nome pidfile token
 }
 
 echo "[stop-local] $(ts) parando portal-web e portal-api (SIGTERM, espera ${WAIT_TERM_S}s proposta, SIGKILL só se necessário)"
+# Folha primeiro (quem escuta), depois o wrapper (npm/dotnet run), se ainda existir.
 if ! stop_one web "$RUN_DIR/web.pid" "ng"; then rc=1; fi
-if ! stop_one api "$RUN_DIR/api.pid" "dotnet"; then rc=1; fi
+if ! stop_one web-lancador "$RUN_DIR/web.launcher.pid" "npm"; then
+  # o lançador pode ser npx ou npm exec; ambos têm "npm" no cmdline usual. Se o token falhar, tenta npx.
+  if ! stop_one web-lancador "$RUN_DIR/web.launcher.pid" "npx"; then rc=1; fi
+fi
+if ! stop_one api "$RUN_DIR/api.pid" "Portal.Api"; then
+  if ! stop_one api "$RUN_DIR/api.pid" "dotnet"; then rc=1; fi
+fi
+if ! stop_one api-lancador "$RUN_DIR/api.launcher.pid" "dotnet"; then rc=1; fi
 
 port_busy() { ss -ltn "sport = :$1" 2>/dev/null | tail -n +2 | grep -q .; }
 for v in PORTAL_API_PORT PORTAL_WEB_PORT; do
