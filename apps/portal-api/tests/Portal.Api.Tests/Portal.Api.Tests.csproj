@@ -3,6 +3,8 @@
   <PropertyGroup>
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
+    <!-- Cobertura: código gerado por source generators (Regex/LoggerMessage, em obj/) fica fora da medição. -->
+    <ExcludeByFile>**/obj/**/*.g.cs</ExcludeByFile>
   </PropertyGroup>
 
   <!-- ADR-0001 v2.0 D4: xUnit 2.9.3, Microsoft.NET.Test.Sdk 18.12.0, Mvc.Testing 10.0.x, coverlet.msbuild 10.1.1 -->
@@ -22,6 +24,8 @@
 
   <ItemGroup>
     <Using Include="Xunit" />
+    <Using Include="Microsoft.Extensions.DependencyInjection" />
+    <Using Include="Microsoft.Extensions.Logging" />
   </ItemGroup>
 
   <ItemGroup>
