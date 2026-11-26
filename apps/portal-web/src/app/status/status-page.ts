@@ -12,7 +12,7 @@ import { HealthView, LOADING, STATUS_TEXTS, healthyAnnouncement } from './health
 
 /**
  * Tela "Status da API" (US-0002; UX-0001 v1.1). Três estados exclusivos; o bloco de cada estado é criado
- * e destruído pelo @switch, então valores anteriores saem do DOM durante o carregamento (CA-04).
+ * e destruído pelo bloco @if / @else if / @else do template, então valores anteriores saem do DOM durante o carregamento (CA-04).
  * Dados só por interpolação de texto, nunca innerHTML (CA-06).
  */
 @Component({
