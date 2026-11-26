@@ -7,6 +7,12 @@
 # Critério de sucesso: nenhuma porta configurada continua escutando. Sai com código != 0 se algo permanecer.
 set -uo pipefail
 
+# Carrega o toolchain local da box, se existir (DOTNET_ROOT, PATH, telemetria).
+if [ -f "${HOME}/.config/ops-toolchain.sh" ]; then
+  # shellcheck disable=SC1091
+  . "${HOME}/.config/ops-toolchain.sh"
+fi
+
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT" || exit 1
 RUN_DIR="$ROOT/run"

@@ -7,6 +7,12 @@
 # Pré-requisito: rede para NuGet Audit (A1) e npm audit (W5); sem rede, A1/W5 não valem como evidência.
 set -euo pipefail
 
+# Carrega o toolchain local da box, se existir (DOTNET_ROOT, PATH, telemetria).
+if [ -f "${HOME}/.config/ops-toolchain.sh" ]; then
+  # shellcheck disable=SC1091
+  . "${HOME}/.config/ops-toolchain.sh"
+fi
+
 die() { echo "[verify-local] ERRO: $*" >&2; exit 1; }
 
 PAPEL="autor"

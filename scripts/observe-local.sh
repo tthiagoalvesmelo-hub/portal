@@ -7,6 +7,12 @@
 # Saída: evidencias/observacao/<ts>-<sha7>/ (gitignorada)
 set -uo pipefail
 
+# Carrega o toolchain local da box, se existir (DOTNET_ROOT, PATH, telemetria).
+if [ -f "${HOME}/.config/ops-toolchain.sh" ]; then
+  # shellcheck disable=SC1091
+  . "${HOME}/.config/ops-toolchain.sh"
+fi
+
 INTERVALO=900
 DURACAO=86400
 while [ $# -gt 0 ]; do

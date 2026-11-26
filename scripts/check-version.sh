@@ -6,6 +6,12 @@
 #   scripts/check-version.sh --adiar-se-sem-tag # no verify-local, antes da 1ª tag
 set -euo pipefail
 
+# Carrega o toolchain local da box, se existir (DOTNET_ROOT, PATH, telemetria).
+if [ -f "${HOME}/.config/ops-toolchain.sh" ]; then
+  # shellcheck disable=SC1091
+  . "${HOME}/.config/ops-toolchain.sh"
+fi
+
 die() { echo "[check-version] ERRO: $*" >&2; exit 1; }
 
 ADIAR=0
