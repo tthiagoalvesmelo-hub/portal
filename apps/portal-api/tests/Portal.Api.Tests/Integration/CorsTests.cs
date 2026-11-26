@@ -44,17 +44,26 @@ public sealed class CorsTests
     [Trait("CT", "CT-0015")]
     public async Task OrigemAusenteCuringaOuInvalidaImpedeAInicializacao(string? origin)
     {
-        Assert.Null(Environment.GetEnvironmentVariable(PortalApiSettings.AllowedOriginKey));
-        await using var factory = PortalApiFactory.Create(allowedOrigin: origin);
-
-        var error = Assert.ThrowsAny<Exception>(() => factory.CreateClient());
-
-        var message = error.ToString();
-        Assert.Contains(PortalApiSettings.AllowedOriginKey, message, StringComparison.Ordinal);
-        if (!string.IsNullOrEmpty(origin))
+        // "Ausente" = nem configuração nem variável de ambiente; o valor do processo é restaurado no fim.
+        var previous = Environment.GetEnvironmentVariable(PortalApiSettings.AllowedOriginKey);
+        Environment.SetEnvironmentVariable(PortalApiSettings.AllowedOriginKey, null);
+        try
         {
-            Assert.DoesNotContain($"'{origin}'", message, StringComparison.Ordinal);
-            Assert.DoesNotContain("nao-e-url", message, StringComparison.Ordinal);
+            await using var factory = PortalApiFactory.Create(allowedOrigin: origin);
+
+            var error = Assert.ThrowsAny<Exception>(() => factory.CreateClient());
+
+            var message = error.ToString();
+            Assert.Contains(PortalApiSettings.AllowedOriginKey, message, StringComparison.Ordinal);
+            if (!string.IsNullOrEmpty(origin))
+            {
+                Assert.DoesNotContain($"'{origin}'", message, StringComparison.Ordinal);
+                Assert.DoesNotContain("nao-e-url", message, StringComparison.Ordinal);
+            }
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable(PortalApiSettings.AllowedOriginKey, previous);
         }
     }
 }
