@@ -1,0 +1,31 @@
+<Project>
+  <!--
+    Propriedades comuns do portal-api (ADR-0001 v2.0 D2/D6; DEC-ARQ-0007 A1; DEC-ARQ-0008; DEC-ARQ-0009).
+    A versão do serviço NÃO fica aqui: fonte única é o <Version> de src/Portal.Api/Portal.Api.csproj (ADR-0002 v1.1).
+    DEM-2026-001 / TASK-0008.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+
+    <!-- Análise estática do SDK (DEC-ARQ-0008) e analyzers de segurança (DEC-ARQ-0009 item 3) -->
+    <EnableNETAnalyzers>true</EnableNETAnalyzers>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <AnalysisLevel>10-recommended</AnalysisLevel>
+    <AnalysisModeSecurity>All</AnalysisModeSecurity>
+
+    <!-- Lockfile de pacotes e restore travado (DEC-ARQ-0007 A1) -->
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+
+    <!-- NuGet Audit no restore (DEC-ARQ-0007 A1; DEC-ARQ-0009 item 1) -->
+    <NuGetAudit>true</NuGetAudit>
+    <NuGetAuditLevel>high</NuGetAuditLevel>
+    <NuGetAuditMode>all</NuGetAuditMode>
+    <WarningsAsErrors>$(WarningsAsErrors);NU1900;NU1903;NU1904</WarningsAsErrors>
+
+    <!-- Sem +<commit> no AssemblyInformationalVersion (ADR-0002 v1.1; ADR-0001 v2.0 D8 item 1) -->
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+  </PropertyGroup>
+</Project>

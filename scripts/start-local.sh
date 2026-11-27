@@ -1,0 +1,233 @@
+#!/usr/bin/env bash
+# scripts/start-local.sh — DEM-2026-001 / TASK-0012 (OPS)
+# Sobe portal-api (dotnet, Release) e portal-web (ng serve local) em processos separados, só em loopback.
+# Lê o .env LOCAL (fora do git). Não instala SDK/CLI. Não gera arquivo de configuração do front.
+# Bind da API: Program.cs lê PORTAL_API_HOST/PORTAL_API_PORT (D7).
+# Não exporta ASPNETCORE_URLS e não passa --urls. Usa --no-launch-profile.
+# Build: caminho posicional (no SDK 10.0.404, "dotnet build --project" falha com MSB1001).
+# PORTAL_API_BASE_URL: deve ser URL absoluta http ou https com host (fail closed, S-N3).
+#   O valor chega ao ng serve em --define, serializado com JSON.stringify (sem interpolar aspas à mão).
+# --somente-mecanica: ensaio opcional só da mecânica de PID, sem exigir GET /health na porta oficial.
+# PIDs: grava a folha que escuta (Portal.Api, ng serve), não o wrapper (dotnet run, npm/npx).
+set -euo pipefail
+
+# Carrega o toolchain local da box, se existir (DOTNET_ROOT, PATH, telemetria).
+if [ -f "${HOME}/.config/ops-toolchain.sh" ]; then
+  # shellcheck disable=SC1091
+  . "${HOME}/.config/ops-toolchain.sh"
+fi
+
+die() { echo "[start-local] ERRO: $*" >&2; exit 1; }
+ts() { TZ=America/Sao_Paulo date '+%Y-%m-%d %H:%M:%S %Z'; }
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT" || die "não foi possível entrar na raiz do monorepo."
+RUN_DIR="$ROOT/run"
+API_CSPROJ="apps/portal-api/src/Portal.Api/Portal.Api.csproj"
+WEB_DIR="apps/portal-web"
+
+SOMENTE_MECANICA=0
+if [ "${1:-}" = "--somente-mecanica" ]; then SOMENTE_MECANICA=1; fi
+
+[ -f ".env" ] || die ".env não existe. Copie .env.example para .env e preencha (o .env fica fora do git)."
+[ -f "$API_CSPROJ" ] || die "$API_CSPROJ não existe."
+[ -f "$WEB_DIR/package.json" ] || die "$WEB_DIR/package.json não existe."
+[ -f "$WEB_DIR/angular.json" ] || die "$WEB_DIR/angular.json não existe."
+
+command -v dotnet >/dev/null || die "dotnet não encontrado (SDK .NET 10; source ~/.config/ops-toolchain.sh)."
+case "$(dotnet --version)" in 10.*) ;; *) die "SDK .NET série 10 exigida (ADR-0001 v2 D1); encontrado: $(dotnet --version)";; esac
+command -v node >/dev/null || die "node não encontrado."
+case "$(node -v)" in v24.*) ;; *) die "Node série 24 exigida como ferramenta (ADR-0001 v2 D3); encontrado: $(node -v)";; esac
+
+set -a
+# shellcheck disable=SC1091
+. ./.env
+set +a
+
+# Uma só fonte de verdade para o bind (Program.cs). Remove herança da sessão ou entrada acidental.
+unset ASPNETCORE_URLS ASPNETCORE_HTTP_PORTS ASPNETCORE_HTTPS_PORTS || true
+# ng serve dá precedência à variável PORT sobre --port (MSG-COL do FS, 26/11 15:57).
+unset PORT || true
+
+for v in PORTAL_API_HOST PORTAL_API_PORT PORTAL_API_ALLOWED_ORIGIN LOG_LEVEL PORTAL_WEB_PORT; do
+  [ -n "${!v:-}" ] || die "variável $v ausente ou vazia no .env."
+done
+[ "$PORTAL_API_HOST" = "127.0.0.1" ] || die "PORTAL_API_HOST deve ser loopback (127.0.0.1) neste teste (ADR-0001 D5/D7)."
+[ "$PORTAL_API_ALLOWED_ORIGIN" != "*" ] || die "PORTAL_API_ALLOWED_ORIGIN não pode ser curinga (DEC-ARQ-0002 L-06)."
+
+# S-N3: URL absoluta http/https com host; fail closed. Não imprime o valor.
+if [ -z "${PORTAL_API_BASE_URL:-}" ]; then
+  die "PORTAL_API_BASE_URL está vazia ou ausente. Informe uma URL absoluta http ou https com host."
+fi
+if ! node -e '
+  const raw = process.env.PORTAL_API_BASE_URL;
+  let u;
+  try { u = new URL(raw); } catch { process.exit(2); }
+  if (u.protocol !== "http:" && u.protocol !== "https:") process.exit(3);
+  if (!u.hostname) process.exit(4);
+'; then
+  die "PORTAL_API_BASE_URL deve ser uma URL absoluta http ou https com host (fail closed)."
+fi
+PORTAL_API_BASE_URL_JSON="$(node -e 'process.stdout.write(JSON.stringify(process.env.PORTAL_API_BASE_URL ?? ""))')"
+if [ -z "$PORTAL_API_BASE_URL_JSON" ] || [ "$PORTAL_API_BASE_URL_JSON" = "undefined" ]; then
+  die "falha ao serializar PORTAL_API_BASE_URL como JSON."
+fi
+
+port_busy() { ss -ltn "sport = :$1" 2>/dev/null | tail -n +2 | grep -q .; }
+if port_busy "$PORTAL_API_PORT"; then die "porta $PORTAL_API_PORT já está em uso na box. Nada foi iniciado."; fi
+if port_busy "$PORTAL_WEB_PORT"; then die "porta $PORTAL_WEB_PORT já está em uso na box. Nada foi iniciado."; fi
+
+mkdir -p "$RUN_DIR/logs"
+if [ -f "$RUN_DIR/api.pid" ] || [ -f "$RUN_DIR/web.pid" ]; then
+  die "run/*.pid já existe: rode scripts/stop-local.sh antes."
+fi
+
+pid_vivo() { [ -n "${1:-}" ] && kill -0 "$1" 2>/dev/null; }
+
+# PID que escuta na porta (ss -p). Não usa pkill.
+listener_pid() {
+  local port="$1"
+  ss -ltnp 2>/dev/null | python3 -c '
+import re, sys
+port = sys.argv[1]
+pid_re = re.compile(r"pid=(\d+)")
+for line in sys.stdin:
+    parts = line.split()
+    local = parts[3] if len(parts) >= 4 else ""
+    if not local.endswith(":" + port):
+        continue
+    m = pid_re.search(line)
+    if m:
+        print(m.group(1))
+        break
+' "$port"
+}
+
+descendant_with_token() {
+  local parent="$1" token="$2" pid ppid cmd found
+  for pid_dir in /proc/[0-9]*; do
+    pid="${pid_dir#/proc/}"
+    ppid="$(awk "/^PPid:/ {print \$2}" "$pid_dir/status" 2>/dev/null || true)"
+    [ "$ppid" = "$parent" ] || continue
+    cmd="$(tr "\0" " " < "$pid_dir/cmdline" 2>/dev/null || true)"
+    case "$cmd" in
+      *"$token"*) echo "$pid"; return 0;;
+    esac
+    if found="$(descendant_with_token "$pid" "$token")"; then
+      echo "$found"
+      return 0
+    fi
+  done
+  return 1
+}
+
+# Substitui o pidfile do wrapper pelo da folha e guarda o lançador, se for outro processo.
+record_leaf_pid() {
+  local name="$1" leaf_file="$2" token="$3" port="${4:-}"
+  local launcher leaf
+  launcher="$(cat "$leaf_file")"
+  leaf=""
+  if [ -n "$port" ]; then
+    leaf="$(listener_pid "$port" || true)"
+  fi
+  if [ -z "$leaf" ] || ! pid_vivo "$leaf"; then
+    leaf="$(descendant_with_token "$launcher" "$token" || true)"
+  fi
+  if [ -n "$leaf" ] && pid_vivo "$leaf" && [ "$leaf" != "$launcher" ]; then
+    echo "$launcher" > "${leaf_file%.pid}.launcher.pid"
+    echo "$leaf" > "$leaf_file"
+    echo "[start-local] $name: lançador pid=$launcher; folha pid=$leaf gravado para o stop"
+  else
+    echo "[start-local] $name: usando o pid do lançador ($launcher)"
+  fi
+}
+
+echo "[start-local] $(ts) compilando portal-api em Release (caminho posicional)"
+dotnet build "$API_CSPROJ" -c Release -warnaserror
+
+echo "[start-local] $(ts) subindo portal-api (Release, bind pelo Program.cs) e portal-web (npx ng serve, loopback)"
+(
+  exec setsid dotnet run -c Release --project "$API_CSPROJ" --no-build --no-launch-profile
+) >"$RUN_DIR/logs/api.log" 2>&1 < /dev/null &
+echo $! > "$RUN_DIR/api.pid"
+echo "Release" > "$RUN_DIR/api.configuration"
+
+if [ ! -x "$WEB_DIR/node_modules/.bin/ng" ]; then
+  if [ ! -f "$WEB_DIR/package-lock.json" ]; then
+    die "$WEB_DIR/package-lock.json ausente (obrigatório, DEC-ARQ-0007 W1)."
+  fi
+  echo "[start-local] $(ts) node_modules do Portal ausente: executando npm ci (reproduzível)"
+  (cd "$WEB_DIR" || exit 1; npm ci)
+fi
+if [ ! -x "$WEB_DIR/node_modules/.bin/ng" ]; then
+  die "ng local não encontrado em $WEB_DIR/node_modules/.bin após npm ci."
+fi
+
+# Binário local. --define recebe PORTAL_API_BASE_URL já serializada com JSON.stringify (S-N3). Não gera arquivo de config.
+(
+  cd "$WEB_DIR" || exit 1
+  unset PORT || true
+  define_ng="PORTAL_API_BASE_URL=${PORTAL_API_BASE_URL_JSON}"
+  exec setsid npx --no-install ng serve --host 127.0.0.1 --port "$PORTAL_WEB_PORT" \
+    --define "$define_ng"
+) >"$RUN_DIR/logs/web.log" 2>&1 < /dev/null &
+echo $! > "$RUN_DIR/web.pid"
+
+wait_http() {
+  local url="$1" tries="${2:-60}"
+  local i
+  for i in $(seq 1 "$tries"); do
+    if curl -fsS -o /dev/null --max-time 2 "$url" 2>/dev/null; then return 0; fi
+    sleep 0.5
+  done
+  return 1
+}
+
+API_LAUNCHER="$(cat "$RUN_DIR/api.pid")"
+WEB_LAUNCHER="$(cat "$RUN_DIR/web.pid")"
+
+if [ "$SOMENTE_MECANICA" -eq 1 ]; then
+  echo "[start-local] modo --somente-mecanica: ensaio de PID (N1 oficial só depois do D7 no código)."
+  ok=1
+  i=0
+  while [ "$i" -lt 20 ]; do
+    if pid_vivo "$API_LAUNCHER" && pid_vivo "$WEB_LAUNCHER"; then ok=0; break; fi
+    sleep 0.25
+    i=$((i + 1))
+  done
+  if [ "$ok" -ne 0 ] || ! pid_vivo "$API_LAUNCHER" || ! pid_vivo "$WEB_LAUNCHER"; then
+    echo "[start-local] um dos processos morreu na subida; últimas linhas dos logs:" >&2
+    tail -n 20 "$RUN_DIR/logs/api.log" >&2 || true
+    tail -n 20 "$RUN_DIR/logs/web.log" >&2 || true
+    "$ROOT/scripts/stop-local.sh" || true
+    die "falha na mecânica de subida (PID)."
+  fi
+  if ! wait_http "http://127.0.0.1:${PORTAL_WEB_PORT}/" 80; then
+    tail -n 20 "$RUN_DIR/logs/web.log" >&2 || true
+    "$ROOT/scripts/stop-local.sh" || true
+    die "falha na subida do Portal (ng serve)."
+  fi
+  echo "[start-local] AVISO: ensaio de mecânica apenas. GET /health em http://${PORTAL_API_HOST}:${PORTAL_API_PORT}/health ainda não é o critério oficial (D7 pendente)."
+  # Web: PID que escuta 4200. API: folha Portal.Api (ainda pode escutar no padrão do Kestrel, não na porta oficial).
+  record_leaf_pid web "$RUN_DIR/web.pid" "ng serve" "$PORTAL_WEB_PORT"
+  record_leaf_pid api "$RUN_DIR/api.pid" "Portal.Api" ""
+else
+  if ! wait_http "http://${PORTAL_API_HOST}:${PORTAL_API_PORT}/health" 60; then
+    echo "[start-local] portal-api NÃO respondeu em ~30 s em http://${PORTAL_API_HOST}:${PORTAL_API_PORT}/health; últimas linhas do log (sem valores de ambiente):" >&2
+    tail -n 20 "$RUN_DIR/logs/api.log" >&2 || true
+    "$ROOT/scripts/stop-local.sh" || true
+    die "falha na subida da API. Se o D7 ainda não estiver no código, use --somente-mecanica."
+  fi
+  if ! wait_http "http://127.0.0.1:${PORTAL_WEB_PORT}/" 80; then
+    tail -n 20 "$RUN_DIR/logs/web.log" >&2 || true
+    "$ROOT/scripts/stop-local.sh" || true
+    die "falha na subida do Portal."
+  fi
+  record_leaf_pid api "$RUN_DIR/api.pid" "Portal.Api" "$PORTAL_API_PORT"
+  record_leaf_pid web "$RUN_DIR/web.pid" "ng serve" "$PORTAL_WEB_PORT"
+fi
+
+PORTAL_URL="http://127.0.0.1:${PORTAL_WEB_PORT}"
+echo "[start-local] $(ts) OK: api pid=$(cat "$RUN_DIR/api.pid") web pid=$(cat "$RUN_DIR/web.pid") configuração=$(cat "$RUN_DIR/api.configuration") (logs em run/logs/, fora do git)"
+echo "[start-local] Portal: ${PORTAL_URL}"
+echo "[start-local] AVISO CORS: abra o Portal em ${PORTAL_URL}. http://localhost:${PORTAL_WEB_PORT} é outra origem e não deve ser usada em testes nem evidências."
