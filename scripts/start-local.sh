@@ -2,11 +2,12 @@
 # scripts/start-local.sh — DEM-2026-001 / TASK-0012 (OPS)
 # Sobe portal-api (dotnet, Release) e portal-web (ng serve local) em processos separados, só em loopback.
 # Lê o .env LOCAL (fora do git). Não instala SDK/CLI. Não gera arquivo de configuração do front.
-# Bind da API: Program.cs lê PORTAL_API_HOST/PORTAL_API_PORT (D7; confirmado pelo FS).
+# Bind da API: Program.cs lê PORTAL_API_HOST/PORTAL_API_PORT (D7).
 # Não exporta ASPNETCORE_URLS e não passa --urls. Usa --no-launch-profile.
 # Build: caminho posicional (no SDK 10.0.404, "dotnet build --project" falha com MSB1001).
-# --somente-mecanica: ensaios de PID antes do D7 (a API ainda pode escutar no padrão do Kestrel).
-#   O ensaio N1 oficial (host, porta e CORS combinados) só vale depois da implementação do D7 pelo FS.
+# PORTAL_API_BASE_URL: deve ser URL absoluta http ou https com host (fail closed, S-N3).
+#   O valor chega ao ng serve em --define, serializado com JSON.stringify (sem interpolar aspas à mão).
+# --somente-mecanica: ensaio opcional só da mecânica de PID, sem exigir GET /health na porta oficial.
 # PIDs: grava a folha que escuta (Portal.Api, ng serve), não o wrapper (dotnet run, npm/npx).
 set -euo pipefail
 
@@ -48,11 +49,29 @@ unset ASPNETCORE_URLS ASPNETCORE_HTTP_PORTS ASPNETCORE_HTTPS_PORTS || true
 # ng serve dá precedência à variável PORT sobre --port (MSG-COL do FS, 26/11 15:57).
 unset PORT || true
 
-for v in PORTAL_API_HOST PORTAL_API_PORT PORTAL_API_ALLOWED_ORIGIN LOG_LEVEL PORTAL_WEB_PORT PORTAL_API_BASE_URL; do
+for v in PORTAL_API_HOST PORTAL_API_PORT PORTAL_API_ALLOWED_ORIGIN LOG_LEVEL PORTAL_WEB_PORT; do
   [ -n "${!v:-}" ] || die "variável $v ausente ou vazia no .env."
 done
 [ "$PORTAL_API_HOST" = "127.0.0.1" ] || die "PORTAL_API_HOST deve ser loopback (127.0.0.1) neste teste (ADR-0001 D5/D7)."
 [ "$PORTAL_API_ALLOWED_ORIGIN" != "*" ] || die "PORTAL_API_ALLOWED_ORIGIN não pode ser curinga (DEC-ARQ-0002 L-06)."
+
+# S-N3: URL absoluta http/https com host; fail closed. Não imprime o valor.
+if [ -z "${PORTAL_API_BASE_URL:-}" ]; then
+  die "PORTAL_API_BASE_URL está vazia ou ausente. Informe uma URL absoluta http ou https com host."
+fi
+if ! node -e '
+  const raw = process.env.PORTAL_API_BASE_URL;
+  let u;
+  try { u = new URL(raw); } catch { process.exit(2); }
+  if (u.protocol !== "http:" && u.protocol !== "https:") process.exit(3);
+  if (!u.hostname) process.exit(4);
+'; then
+  die "PORTAL_API_BASE_URL deve ser uma URL absoluta http ou https com host (fail closed)."
+fi
+PORTAL_API_BASE_URL_JSON="$(node -e 'process.stdout.write(JSON.stringify(process.env.PORTAL_API_BASE_URL ?? ""))')"
+if [ -z "$PORTAL_API_BASE_URL_JSON" ] || [ "$PORTAL_API_BASE_URL_JSON" = "undefined" ]; then
+  die "falha ao serializar PORTAL_API_BASE_URL como JSON."
+fi
 
 port_busy() { ss -ltn "sport = :$1" 2>/dev/null | tail -n +2 | grep -q .; }
 if port_busy "$PORTAL_API_PORT"; then die "porta $PORTAL_API_PORT já está em uso na box. Nada foi iniciado."; fi
@@ -144,12 +163,13 @@ if [ ! -x "$WEB_DIR/node_modules/.bin/ng" ]; then
   die "ng local não encontrado em $WEB_DIR/node_modules/.bin após npm ci."
 fi
 
-# Binário local. --define passa PORTAL_API_BASE_URL escapada como JSON (pedido do FS). Não gera arquivo de config.
+# Binário local. --define recebe PORTAL_API_BASE_URL já serializada com JSON.stringify (S-N3). Não gera arquivo de config.
 (
   cd "$WEB_DIR" || exit 1
   unset PORT || true
+  define_ng="PORTAL_API_BASE_URL=${PORTAL_API_BASE_URL_JSON}"
   exec setsid npx --no-install ng serve --host 127.0.0.1 --port "$PORTAL_WEB_PORT" \
-    --define "PORTAL_API_BASE_URL=\"${PORTAL_API_BASE_URL}\""
+    --define "$define_ng"
 ) >"$RUN_DIR/logs/web.log" 2>&1 < /dev/null &
 echo $! > "$RUN_DIR/web.pid"
 

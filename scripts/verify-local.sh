@@ -32,7 +32,7 @@ SHA_FULL="$(git rev-parse HEAD)"
 EV="evidencias/verify/${TS_DIR}-${SHA_FULL:0:7}-${PAPEL}"
 mkdir -p "$EV"
 
-sanitize() { sed -e "s#${HOME}#/home/<usuario>#g"; }
+sanitize() { sed -e "s#${HOME}#/home/<usuario>#g" -e "s#${ROOT}#<raiz>#g"; }
 exec > >(sanitize | tee "$EV/log.txt") 2>&1
 
 API_DIR="apps/portal-api"
